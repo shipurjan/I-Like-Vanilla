@@ -30,16 +30,16 @@ void raytrace(out vec2 reflectionPos, out int error, vec3 viewPos, vec3 reflecti
 		
 		float realDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, screenPos.xy).r;
 		#ifdef DISTANT_HORIZONS
-			vec3 realBlockViewPos = screenToView(vec3(texcoord, realDepth));
+			vec3 realBlockViewPos = screenToView(vec3(screenPos.xy, realDepth));
 			float realDepthDh = texture2D(DH_DEPTH_BUFFER_WO_TRANS, screenPos.xy).r;
-			vec3 realBlockViewPosDh = screenToViewDh(vec3(texcoord, realDepthDh));
+			vec3 realBlockViewPosDh = screenToViewDh(vec3(screenPos.xy, realDepthDh));
 			if (realBlockViewPosDh.z > realBlockViewPos.z) realBlockViewPos = realBlockViewPosDh;
 			vec4 sampleScreenPos = gbufferProjection * vec4(realBlockViewPos, 1.0);
 			realDepth = sampleScreenPos.z / sampleScreenPos.w * 0.5 + 0.5;
 		#endif
 		float realToScreen = screenPos.z - realDepth;
 		
-		if (realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
+		if (stepVector.z > 0.001 && realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
 			hitCount ++;
 			if (hitCount >= 5) { // converged on point
 				reflectionPos = screenPos.xy;
@@ -70,7 +70,22 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 	vec2 reflectionPos;
 	int error;
 	raytrace(reflectionPos, error, viewPos, reflectionDirection, normal);
-	
+
+	#if SSR_DEBUG >= 1
+		if (error == 0) {
+			#if SSR_DEBUG == 1
+				color = vec3(1.0, 0.0, 0.0);
+			#elif SSR_DEBUG == 2
+				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r));
+				float ratio = dot(hitView, hitView) / dot(viewPos, viewPos);
+				color = vec3(clamp(1.0 - ratio, 0.0, 1.0), clamp(ratio, 0.0, 1.0), 0.0);
+			#endif
+		} else {
+			color = vec3(0.0, 0.0, 0.3);
+		}
+		return;
+	#endif
+
 	float fresnel = 1.0 - abs(dot(normalize(viewPos), normal));
 	fresnel *= fresnel;
 	fresnel *= fresnel;
