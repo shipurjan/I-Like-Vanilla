@@ -1,4 +1,4 @@
-void raytrace(out vec2 reflectionPos, out int error, vec3 viewPos, vec3 reflectionDir, vec3 normal) {
+void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ, vec3 viewPos, vec3 reflectionDir, vec3 normal) {
 	
 	// basic setup
 	vec3 screenPos = mult(gbufferProjection, viewPos) * 0.5 + 0.5;
@@ -25,6 +25,7 @@ void raytrace(out vec2 reflectionPos, out int error, vec3 viewPos, vec3 reflecti
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
 	
+	convergenceStepZ = 0.0;
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
 		
@@ -39,10 +40,11 @@ void raytrace(out vec2 reflectionPos, out int error, vec3 viewPos, vec3 reflecti
 		#endif
 		float realToScreen = screenPos.z - realDepth;
 		
-		if (stepVector.z > 0.001 && realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
+		if (realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
 			hitCount ++;
 			if (hitCount >= 5) { // converged on point
 				reflectionPos = screenPos.xy;
+				convergenceStepZ = stepVector.z;
 				error = 0;
 				float originDistSq = dot(viewPos, viewPos);
 				// Reject hits from geometry much closer than the reflecting surface
@@ -69,7 +71,8 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 	vec3 reflectionDirection = reflect(normalize(viewPos), normalize(normal));
 	vec2 reflectionPos;
 	int error;
-	raytrace(reflectionPos, error, viewPos, reflectionDirection, normal);
+	float convergenceStepZ;
+	raytrace(reflectionPos, error, convergenceStepZ, viewPos, reflectionDirection, normal);
 
 	#if SSR_DEBUG >= 1
 		if (error == 0) {
@@ -79,6 +82,11 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r));
 				float ratio = dot(hitView, hitView) / dot(viewPos, viewPos);
 				color = vec3(clamp(1.0 - ratio, 0.0, 1.0), clamp(ratio, 0.0, 1.0), 0.0);
+			#elif SSR_DEBUG == 3
+				// visualize stepVector.z at convergence: black=0, green=small, red=large
+				// scale so that typical values are visible
+				float v = convergenceStepZ * 1000.0;
+				color = vec3(clamp(v - 1.0, 0.0, 1.0), clamp(v, 0.0, 1.0), 0.0);
 			#endif
 		} else {
 			color = vec3(0.0, 0.0, 0.3);

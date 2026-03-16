@@ -238,7 +238,7 @@ const float shadowDistanceRenderMul = 2.0; // [0.5 0.6 0.7 0.8 0.9 1.0 1.1 1.2 1
 
 
 #define REFLECTIONS_ENABLED 1 // [0 1]
-#define SSR_DEBUG 0 // [0 1 2]
+#define SSR_DEBUG 0 // [0 1 2 3]
 #define REFLECTION_ITERATIONS 40 // [-1 20 25 30 35 40 45 50 55 60 65 70 80 90 100 120 140 160 180 200 220 240 260 280 300]
 #define REFLECTION_DITHER_AMOUNT 1.0 // [0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0]
 #define REFLECTION_FRESNEL -1 // [-1 0.0 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0]
