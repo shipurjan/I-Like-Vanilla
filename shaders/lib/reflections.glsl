@@ -25,10 +25,7 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
 	
-	// Pre-compute screen-space depth at 25% of water's view-space distance
-	vec4 nearThreshClip = gbufferProjection * vec4(0.0, 0.0, viewPos.z * 0.25, 1.0);
-	float nearSkipDepth = nearThreshClip.z / nearThreshClip.w * 0.5 + 0.5;
-	vec3 initialStepVector = stepVector;
+	float originDistSq = dot(viewPos, viewPos);
 	convergenceStepZ = stepVector.z;
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
@@ -42,32 +39,25 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 			vec4 sampleScreenPos = gbufferProjection * vec4(realBlockViewPos, 1.0);
 			realDepth = sampleScreenPos.z / sampleScreenPos.w * 0.5 + 0.5;
 		#endif
-
-		// Skip near-camera geometry (e.g. leaves) that would block the ray
-		if (realDepth < nearSkipDepth) {
-			hitCount = 0;
-			stepVector = initialStepVector;
-			screenPos += stepVector;
-			continue;
-		}
-
 		float realToScreen = screenPos.z - realDepth;
 
 		if (realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
-			hitCount ++;
-			if (hitCount >= 5) { // converged on point
-				reflectionPos = screenPos.xy;
-				error = 0;
-				float originDistSq = dot(viewPos, viewPos);
-				// Reject hits from geometry much closer than the reflecting surface
-				vec3 hitViewPos = screenToView(vec3(screenPos.xy, realDepth));
-				if (dot(hitViewPos, hitViewPos) < originDistSq * 0.04) error = 1;
-				float depthWithHandheld = texture2D(DEPTH_BUFFER_ALL, screenPos.xy).r;
-				if (depthIsHand(depthWithHandheld) && originDistSq > 2.5 + dither) error = 1;
-				return;
+			// Reject hits on geometry much closer than the reflecting surface
+			vec3 hitViewPos = screenToView(vec3(screenPos.xy, realDepth));
+			if (dot(hitViewPos, hitViewPos) < originDistSq * 0.04) {
+				screenPos += stepVector;
+			} else {
+				hitCount ++;
+				if (hitCount >= 5) { // converged on point
+					reflectionPos = screenPos.xy;
+					error = 0;
+					float depthWithHandheld = texture2D(DEPTH_BUFFER_ALL, screenPos.xy).r;
+					if (depthIsHand(depthWithHandheld) && originDistSq > 2.5 + dither) error = 1;
+					return;
+				}
+				screenPos -= stepVector;
+				stepVector *= 0.5;
 			}
-			screenPos -= stepVector;
-			stepVector *= 0.5;
 		} else {
 			screenPos += stepVector;
 		}
