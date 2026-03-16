@@ -25,7 +25,9 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
 	
-	float originScreenDepth = screenPos.z;
+	// Pre-compute screen-space depth at 25% of water's view-space distance
+	vec4 nearThreshClip = gbufferProjection * vec4(0.0, 0.0, viewPos.z * 0.25, 1.0);
+	float nearSkipDepth = nearThreshClip.z / nearThreshClip.w * 0.5 + 0.5;
 	vec3 initialStepVector = stepVector;
 	convergenceStepZ = stepVector.z;
 	int hitCount = 0;
@@ -42,7 +44,7 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 		#endif
 
 		// Skip near-camera geometry (e.g. leaves) that would block the ray
-		if (realDepth < originScreenDepth * 0.5) {
+		if (realDepth < nearSkipDepth) {
 			hitCount = 0;
 			stepVector = initialStepVector;
 			screenPos += stepVector;
