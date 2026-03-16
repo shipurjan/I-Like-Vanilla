@@ -1,0 +1,319 @@
+What you’re seeing in **I Like Vanilla** is actually a **very typical Minecraft shadow-map pipeline**, just with a few stylistic filters layered on top. Those settings tell us quite a lot about how it works internally.
+
+Let’s unpack the interesting parts.
+
+---
+
+# Why Minecraft shader shadows look “square” sometimes
+
+In **Minecraft** shaders, shadows are usually rendered into a **shadow map texture**.
+
+Simplified:
+
+```
+world → rendered from sun → depth texture (shadow map)
+```
+
+
+Then during lighting:
+
+
+```
+compare pixel depth vs shadow map depth
+
+```
+
+If the shadow map resolution is low relative to the world scale, you get **blocky edges**.
+
+Example mental model:
+
+
+```
+shadow map resolution = 1024×1024
+world area covered = 200 blocks
+```
+
+
+So one shadow pixel covers about:
+
+```
+~0.2 blocks
+```
+
+If the coverage increases:
+
+```
+world area = 800 blocks
+```
+
+Then one shadow pixel covers:
+
+```
+~0.8 blocks
+```
+
+Now shadows look **chunky**.
+
+That’s why shaders expose settings like:
+
+* **Shadow map scale**
+* **Shadow map resolution**
+* **Shadow map distance**
+
+They control **how many world units one shadow texel represents**.
+
+---
+
+# What “Pixelated Shadows” is doing
+
+The **Pixelated Shadows** setting in **I Like Vanilla** likely does something like:
+
+```
+shadow_uv = floor(shadow_uv * grid) / grid
+```
+
+
+That snaps the sampling coordinates to a grid.
+
+Result:
+
+```
+shadow map
+→ quantized sampling
+→ blocky shadow edges
+```
+
+Which matches the **Minecraft aesthetic**.
+
+---
+
+# Why “Shadow Filtering” doesn’t work with Pixelated Shadows
+
+The option description you pasted explains something important:
+
+> “Shadow Filtering works best with Temporal Filter enabled, has no effect when pixelated shadows is enabled”
+
+That means:
+
+
+```
+Shadow Filtering = blur / PCF
+Pixelated Shadows = quantized sampling
+```
+
+These conflict.
+
+If you blur the shadow first, then quantize it, the blur disappears.
+
+
+So the shader disables filtering when pixelation is active.
+
+---
+
+
+# Your idea: physically correct penumbra + pixel shadows
+
+Now to your **question about point 5**.
+
+You asked:
+
+> Would I need PCSS for that?
+
+Yes — **PCSS is the best candidate**.
+
+
+Because PCSS already computes **penumbra width based on blocker distance**.
+
+Conceptually:
+
+```
+penumbra size ∝ distance(light, blocker)
+```
+
+
+Meaning:
+
+
+```
+near contact → sharp
+
+far shadow → soft
+```
+
+Exactly the effect you want.
+
+
+---
+
+# Where the pixelation would happen
+
+Your pipeline could look like this:
+
+```
+1. PCSS soft shadow visibility
+2. result = 0..1 shadow intensity
+3. quantize result spatially to 16×16 grid
+```
+
+Visually:
+
+```
+PCSS shadow
+    ↓
+snap to block grid
+```
+
+
+So you’d get:
+
+
+```
+████████
+██░░░░██
+██░░░░██
+```
+
+
+Instead of:
+
+
+```
+███████░░░░░░░
+```
+
+
+Soft edges but **block-aligned shadow shapes**.
+
+---
+
+# Why the current shader can't produce penumbra
+
+From the settings you showed:
+
+* **Shadow Filtering**
+* **Noise Amount**
+* **Temporal Filter**
+
+
+This strongly suggests it uses:
+
+```
+PCF (percentage closer filtering)
++ temporal accumulation
+```
+
+PCF only does:
+
+```
+
+blur shadow edges
+```
+
+It **does not compute penumbra size physically**.
+
+So shadows stay roughly the same softness everywhere.
+
+---
+
+# The interesting setting: “Pixelated Shadows Softness”
+
+This suggests the shader already does something like:
+
+```
+shadow_visibility
+→ smoothstep()
+```
+
+to control the transition.
+
+But again, that's just **artificial edge smoothing**, not real penumbra.
+
+
+---
+
+# Good news: your idea is very feasible
+
+You likely **would not need to rewrite the whole shader**.
+
+You could modify the shadow code to:
+
+```
+
+replace PCF
+with PCSS
+```
+
+Then keep the **existing pixelation step**.
+
+
+So the pipeline becomes:
+
+
+```
+shadow map
+→ PCSS penumbra
+→ pixel grid snap
+```
+
+---
+
+# Where you would implement it
+
+Inside the shader repo you linked:
+
+```
+shaders/
+
+```
+
+Look for code referencing:
+
+
+```
+shadow2D
+shadowtex0
+shadowmap
+```
+
+Probably in files like:
+
+```
+composite.fsh
+deferred.fsh
+shadow.fsh
+
+```
+
+That's where PCF filtering is happening.
+
+---
+
+# One cool thing you could get
+
+If you combine:
+
+```
+PCSS
++ leaf alpha shadows
++ pixel grid snapping
+```
+
+You could get something like:
+
+```
+blocky leaf shadows
+but with real penumbra diffusion
+
+```
+
+Which would look **extremely Minecraft-ish but physically grounded**.
+
+Honestly a pretty unique style.
+
+
+---
+
+✅ If you'd like, I can also show you **the exact GLSL pseudocode for PCSS used in many game engines**.
+
+It’s surprisingly short (about ~40 lines) and would probably drop almost directly into that shader pack.
+
