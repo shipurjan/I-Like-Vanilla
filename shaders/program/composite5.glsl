@@ -116,6 +116,8 @@ void main() {
 	
 	
 	/* DRAWBUFFERS:0 */
+	// DEBUG: tint entire screen red to confirm this branch is loaded — REMOVE ME
+	color.r += 0.5;
 	color *= 0.5;
 	gl_FragData[0] = vec4(color, 1.0);
 	#if TEMPORAL_FILTER_ENABLED == 1 || MOTION_BLUR_ENABLED == 1 || SSS_PHOSPHOR == 1 || SSS_LIDAR == 1
