@@ -25,10 +25,12 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
 	
+	float originScreenDepth = screenPos.z;
+	vec3 initialStepVector = stepVector;
 	convergenceStepZ = stepVector.z;
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
-		
+
 		float realDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, screenPos.xy).r;
 		#ifdef DISTANT_HORIZONS
 			vec3 realBlockViewPos = screenToView(vec3(screenPos.xy, realDepth));
@@ -38,8 +40,17 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 			vec4 sampleScreenPos = gbufferProjection * vec4(realBlockViewPos, 1.0);
 			realDepth = sampleScreenPos.z / sampleScreenPos.w * 0.5 + 0.5;
 		#endif
+
+		// Skip near-camera geometry (e.g. leaves) that would block the ray
+		if (realDepth < originScreenDepth * 0.5) {
+			hitCount = 0;
+			stepVector = initialStepVector;
+			screenPos += stepVector;
+			continue;
+		}
+
 		float realToScreen = screenPos.z - realDepth;
-		
+
 		if (realToScreen > 0.0 && realToScreen < sqrt(stepVector.z) * 0.5) {
 			hitCount ++;
 			if (hitCount >= 5) { // converged on point
