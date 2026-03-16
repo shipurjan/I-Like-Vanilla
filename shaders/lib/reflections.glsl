@@ -44,8 +44,12 @@ void raytrace(out vec2 reflectionPos, out int error, vec3 viewPos, vec3 reflecti
 			if (hitCount >= 5) { // converged on point
 				reflectionPos = screenPos.xy;
 				error = 0;
+				float originDistSq = dot(viewPos, viewPos);
+				// Reject hits from geometry much closer than the reflecting surface
+				vec3 hitViewPos = screenToView(vec3(screenPos.xy, realDepth));
+				if (dot(hitViewPos, hitViewPos) < originDistSq * 0.04) error = 1;
 				float depthWithHandheld = texture2D(DEPTH_BUFFER_ALL, screenPos.xy).r;
-				if (depthIsHand(depthWithHandheld) && dot(viewPos, viewPos) > 2.5 + dither) error = 1;
+				if (depthIsHand(depthWithHandheld) && originDistSq > 2.5 + dither) error = 1;
 				return;
 			}
 			screenPos -= stepVector;
