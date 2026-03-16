@@ -25,7 +25,7 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
 	
-	convergenceStepZ = 0.0;
+	convergenceStepZ = stepVector.z;
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
 		
@@ -44,7 +44,6 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 			hitCount ++;
 			if (hitCount >= 5) { // converged on point
 				reflectionPos = screenPos.xy;
-				convergenceStepZ = stepVector.z;
 				error = 0;
 				float originDistSq = dot(viewPos, viewPos);
 				// Reject hits from geometry much closer than the reflecting surface
@@ -83,10 +82,10 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 				float ratio = dot(hitView, hitView) / dot(viewPos, viewPos);
 				color = vec3(clamp(1.0 - ratio, 0.0, 1.0), clamp(ratio, 0.0, 1.0), 0.0);
 			#elif SSR_DEBUG == 3
-				// visualize stepVector.z at convergence: black=0, green=small, red=large
-				// scale so that typical values are visible
-				float v = convergenceStepZ * 1000.0;
-				color = vec3(clamp(v - 1.0, 0.0, 1.0), clamp(v, 0.0, 1.0), 0.0);
+				// log scale of initial stepVector.z: green=large Z step, red=tiny Z step
+				// -log2 maps: 1e-2→~7, 1e-4→~13, 1e-6→~20, 1e-8→~27
+				float v = clamp((-log2(max(convergenceStepZ, 1e-20)) - 5.0) / 20.0, 0.0, 1.0);
+				color = vec3(v, 1.0 - v, 0.0);
 			#endif
 		} else {
 			color = vec3(0.0, 0.0, 0.3);
