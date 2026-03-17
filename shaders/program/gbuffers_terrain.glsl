@@ -194,7 +194,11 @@ void main() {
 	#endif
 	
 	
-	/* DRAWBUFFERS:02 */
+	#ifdef IS_CUTOUT_PASS
+		/* DRAWBUFFERS:02 */
+	#else
+		/* DRAWBUFFERS:029 */
+	#endif
 	#if DO_COLOR_CODED_GBUFFERS == 1
 		color = vec4(0.75, 0.75, 0.75, 1.0);
 	#endif
@@ -205,6 +209,9 @@ void main() {
 		pack_2x8(reflectiveness, specularness),
 		encodedNormal
 	);
+	#ifndef IS_CUTOUT_PASS
+		gl_FragData[2] = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0);
+	#endif
 	
 }
 

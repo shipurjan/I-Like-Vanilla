@@ -28,6 +28,9 @@ const bool  colortex7Clear        = false;
 	const int   colortex8Format   = RGBA8;
 	const bool  colortex8Clear    = true;
 #endif
+const int   colortex9Format       = R32F;
+const bool  colortex9Clear        = true;
+const vec4  colortex9ClearColor   = vec4(1.0, 0.0, 0.0, 0.0);
 const bool  shadowtex0Clear       = false;
 const bool  shadowtex1Clear       = false;
 const float wetnessHalflife       = 30.0f;

@@ -30,7 +30,7 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
 
-		float realDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, screenPos.xy).r;
+		float realDepth = texture2D(LEAF_FREE_DEPTH_TEXTURE, screenPos.xy).r;
 		#ifdef DISTANT_HORIZONS
 			vec3 realBlockViewPos = screenToView(vec3(screenPos.xy, realDepth));
 			float realDepthDh = texture2D(DH_DEPTH_BUFFER_WO_TRANS, screenPos.xy).r;
@@ -81,7 +81,7 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 			#if SSR_DEBUG == 1
 				color = vec3(1.0, 0.0, 0.0);
 			#elif SSR_DEBUG == 2
-				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r));
+				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(LEAF_FREE_DEPTH_TEXTURE, reflectionPos).r));
 				float ratio = dot(hitView, hitView) / dot(viewPos, viewPos);
 				color = vec3(clamp(1.0 - ratio, 0.0, 1.0), clamp(ratio, 0.0, 1.0), 0.0);
 			#elif SSR_DEBUG == 3
@@ -115,9 +115,17 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 	
 	vec3 reflectionColor;
 	if (error == 0) {
-		reflectionColor = texture2DLod(texture, reflectionPos, 0).rgb * 2.0;
-		float fadeOutSlope = 1.0 / (max(normal.z, 0.0) + 0.0001);
-		reflectionColor = mix(skyColor, reflectionColor, clamp(fadeOutSlope - fadeOutSlope * max(abs(reflectionPos.x * 2.0 - 1.0), abs(reflectionPos.y * 2.0 - 1.0)), 0.0, 1.0));
+		// If hit landed on a cutout pixel (leaf/grass), use sky color instead of leaf color
+		float hitLeafFreeDepth = texture2D(LEAF_FREE_DEPTH_TEXTURE, reflectionPos).r;
+		float hitOpaqueDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r;
+		bool isCutoutPixel = abs(hitLeafFreeDepth - hitOpaqueDepth) > 0.001;
+		if (isCutoutPixel) {
+			reflectionColor = skyColor;
+		} else {
+			reflectionColor = texture2DLod(texture, reflectionPos, 0).rgb * 2.0;
+			float fadeOutSlope = 1.0 / (max(normal.z, 0.0) + 0.0001);
+			reflectionColor = mix(skyColor, reflectionColor, clamp(fadeOutSlope - fadeOutSlope * max(abs(reflectionPos.x * 2.0 - 1.0), abs(reflectionPos.y * 2.0 - 1.0)), 0.0, 1.0));
+		}
 	} else {
 		reflectionColor = skyColor;
 	}
