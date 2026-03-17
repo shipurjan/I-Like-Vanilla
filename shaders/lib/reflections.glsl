@@ -1,9 +1,9 @@
 void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ, vec3 viewPos, vec3 reflectionDir, vec3 normal) {
-	
+
 	// basic setup
 	vec3 screenPos = mult(gbufferProjection, viewPos) * 0.5 + 0.5;
 	vec3 nextScreenPos = mult(gbufferProjection, viewPos - reflectionDir * pow(dot(viewPos, viewPos), 0.3)) * 0.5 + 0.5; // normally this would be pos+dir (and step=next-pos), but for some reason it works better this way
-	
+
 	// calculate the optimal stepVector that will stop at the screen edge
 	vec3 stepVector = screenPos - nextScreenPos;
 	stepVector /= length(stepVector.xy);
@@ -18,19 +18,19 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 		stepVector.y = clampedStepY;
 	}
 	stepVector /= (REFLECTION_ITERATIONS - 8); // ensure that the ray will reach the edge of the screen 8 steps early, allows for fine-tuning to not be cut short
-	
+
 	float dither = bayer64(gl_FragCoord.xy);
 	#if TEMPORAL_FILTER_ENABLED == 1
 		dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
 	#endif
 	screenPos += stepVector * (dither + length(viewPos) / 1024) * REFLECTION_DITHER_AMOUNT;
-	
+
 	float originDistSq = dot(viewPos, viewPos);
 	convergenceStepZ = stepVector.z;
 	int hitCount = 0;
 	for (int i = 0; i < REFLECTION_ITERATIONS; i++) {
 
-		float realDepth = texture2D(LEAF_FREE_DEPTH_TEXTURE, screenPos.xy).r;
+		float realDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, screenPos.xy).r;
 		#ifdef DISTANT_HORIZONS
 			vec3 realBlockViewPos = screenToView(vec3(screenPos.xy, realDepth));
 			float realDepthDh = texture2D(DH_DEPTH_BUFFER_WO_TRANS, screenPos.xy).r;
@@ -47,29 +47,37 @@ void raytrace(out vec2 reflectionPos, out int error, out float convergenceStepZ,
 			if (dot(hitViewPos, hitViewPos) < originDistSq * 0.04) {
 				screenPos += stepVector;
 			} else {
-				hitCount ++;
-				if (hitCount >= 5) { // converged on point
-					reflectionPos = screenPos.xy;
-					error = 0;
-					float depthWithHandheld = texture2D(DEPTH_BUFFER_ALL, screenPos.xy).r;
-					if (depthIsHand(depthWithHandheld) && originDistSq > 2.5 + dither) error = 1;
-					return;
+				// Reject hits that deviate from the true 3D reflection ray
+				vec3 toHit = hitViewPos - viewPos;
+				float alongRay = dot(toHit, reflectionDir);
+				vec3 perpToRay = toHit - reflectionDir * alongRay;
+				if (alongRay < 0.0 || dot(perpToRay, perpToRay) > 4.0) {
+					screenPos += stepVector;
+				} else {
+					hitCount ++;
+					if (hitCount >= 5) { // converged on point
+						reflectionPos = screenPos.xy;
+						error = 0;
+						float depthWithHandheld = texture2D(DEPTH_BUFFER_ALL, screenPos.xy).r;
+						if (depthIsHand(depthWithHandheld) && originDistSq > 2.5 + dither) error = 1;
+						return;
+					}
+					screenPos -= stepVector;
+					stepVector *= 0.5;
 				}
-				screenPos -= stepVector;
-				stepVector *= 0.5;
 			}
 		} else {
 			screenPos += stepVector;
 		}
 	}
-	
+
 	error = 1;
 }
 
 
 
 void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sampler2D texture, float reflectionStrength) {
-	
+
 	vec3 reflectionDirection = reflect(normalize(viewPos), normalize(normal));
 	vec2 reflectionPos;
 	int error;
@@ -81,7 +89,7 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 			#if SSR_DEBUG == 1
 				color = vec3(1.0, 0.0, 0.0);
 			#elif SSR_DEBUG == 2
-				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(LEAF_FREE_DEPTH_TEXTURE, reflectionPos).r));
+				vec3 hitView = screenToView(vec3(reflectionPos, texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r));
 				float ratio = dot(hitView, hitView) / dot(viewPos, viewPos);
 				color = vec3(clamp(1.0 - ratio, 0.0, 1.0), clamp(ratio, 0.0, 1.0), 0.0);
 			#elif SSR_DEBUG == 3
@@ -110,26 +118,18 @@ void addReflection(inout vec3 color, vec3 viewPos, vec3 normal, vec2 lmcoord, sa
 		skyColor = 0.08 + 0.125 * skyColor;
 		skyColor += vec3(0.0, 0.03, 0.3);
 	}
-	
+
 	const float inputColorWeight = 0.2;
-	
+
 	vec3 reflectionColor;
 	if (error == 0) {
-		// If hit landed on a cutout pixel (leaf/grass), use sky color instead of leaf color
-		float hitLeafFreeDepth = texture2D(LEAF_FREE_DEPTH_TEXTURE, reflectionPos).r;
-		float hitOpaqueDepth = texture2D(DEPTH_BUFFER_WO_TRANS_OR_HANDHELD, reflectionPos).r;
-		bool isCutoutPixel = abs(hitLeafFreeDepth - hitOpaqueDepth) > 0.001;
-		if (isCutoutPixel) {
-			reflectionColor = skyColor;
-		} else {
-			reflectionColor = texture2DLod(texture, reflectionPos, 0).rgb * 2.0;
-			float fadeOutSlope = 1.0 / (max(normal.z, 0.0) + 0.0001);
-			reflectionColor = mix(skyColor, reflectionColor, clamp(fadeOutSlope - fadeOutSlope * max(abs(reflectionPos.x * 2.0 - 1.0), abs(reflectionPos.y * 2.0 - 1.0)), 0.0, 1.0));
-		}
+		reflectionColor = texture2DLod(texture, reflectionPos, 0).rgb * 2.0;
+		float fadeOutSlope = 1.0 / (max(normal.z, 0.0) + 0.0001);
+		reflectionColor = mix(skyColor, reflectionColor, clamp(fadeOutSlope - fadeOutSlope * max(abs(reflectionPos.x * 2.0 - 1.0), abs(reflectionPos.y * 2.0 - 1.0)), 0.0, 1.0));
 	} else {
 		reflectionColor = skyColor;
 	}
 	reflectionColor *= (1.0 - inputColorWeight) + color * inputColorWeight;
 	color = mix(color, reflectionColor, reflectionStrength);
-	
+
 }

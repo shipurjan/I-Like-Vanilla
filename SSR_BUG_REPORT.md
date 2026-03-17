@@ -42,6 +42,65 @@ Y\Z   0  1  2  3  4  5
 
 **Expected (no leaves overhead):** The horizon zone is uniformly red (all SSR rays successfully hit terrain), with the lower half blue (steep-angle rays correctly falling back to sky).
 
+# Another reproduction to keep in mind
+
+## Reproduction Setup
+
+Legend:
+~  - water
+p  - player's legs
+o  - player's head
+<-- - gaze direction (horizontal)
+#  - leaves (stationary)
+#' - reflection of leaves visible in water
+.  - air
+
+=== State 1 ===
+
+Y\Z   0  1  2  3  4  5
+ 67 [ #  .  .  .  .  . ]
+ 66 [ .  .  .  .  .  . ]
+ 65 [ .  .  .  .  .  . ]
+ 64 [ .  .  .  .  <--o ]
+ 63 [ ~  ~  ~  ~  ~  p ]
+ 62 [ ~  ~  ~  ~  ~  ~ ]
+ 61 [ ~  ~  ~  ~  ~  ~ ]
+ 60 [ #' ~  ~  ~  ~  ~ ]
+ 59 [ ~  ~  ~  ~  ~  ~ ]
+
+=== State 2 ===
+
+Y\Z   0  1  2  3  4  5
+ 67 [ #  .  .  .  .  . ]
+ 66 [ .  .  .  .  .  . ]
+ 65 [ .  .  .  .  <--o ]
+ 64 [ .  .  .  .  .  p ]
+ 63 [ ~  ~  ~  ~  ~  ~ ]
+ 62 [ ~  ~  ~  ~  ~  ~ ]
+ 61 [ #' ~  ~  ~  ~  ~ ]
+ 60 [ ~  ~  ~  ~  ~  ~ ]
+ 59 [ ~  ~  ~  ~  ~  ~ ]
+
+=== State 3 ===
+
+Y\Z   0  1  2  3  4  5
+ 67 [ #  .  .  .  .  . ]
+ 66 [ .  .  .  .  <--o ]
+ 65 [ .  .  .  .  .  p ]
+ 64 [ .  .  .  .  .  . ]
+ 63 [ ~  ~  ~  ~  ~  ~ ]
+ 62 [ #' ~  ~  ~  ~  ~ ]
+ 61 [ ~  ~  ~  ~  ~  ~ ]
+ 60 [ ~  ~  ~  ~  ~  ~ ]
+ 59 [ ~  ~  ~  ~  ~  ~ ]
+
+Note: The leaves (#) stay fixed at Y=67 throughout. As the player rises, the reflection (#') 
+rises at the same pace — the perceived reflection climbs toward the surface. This is 
+physically incorrect: in reality, as the player moves up with a fixed horizontal gaze, 
+the reflection angle steepens and the reflected image should shift. To keep the reflection 
+at a stable depth, the player would need to continuously tilt their gaze downward as they 
+ascend, compensating for the increased height above the water surface.
+
 ## Shader Pack Architecture
 
 ### Rendering Pipeline
