@@ -161,9 +161,7 @@ void main() {
 		float depthSunraysAddition = getDepthSunraysAmount();
 		depthSunraysAddition *= 1.0 - 0.8 * fogAmount;
 		float dither = bayer64(gl_FragCoord.xy);
-		#if TEMPORAL_FILTER_ENABLED == 1
-			dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
-		#endif
+		dither = fract(dither + 1.61803398875 * mod(float(frameCounter), 3600.0));
 		depthSunraysAddition += dither / 255.0;
 	#else
 		float depthSunraysAddition = 0.0;
