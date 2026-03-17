@@ -2147,6 +2147,13 @@ option.HORROR_MODE.comment=Exposes internal data for the bloom effect, making ev
 value.HORROR_MODE.0=Off
 value.HORROR_MODE.1=On
 
+option.SSR_DEBUG=SSR Debug
+option.SSR_DEBUG.comment=Debug visualization modes for screen-space reflections. Hit Mask shows red for SSR hits and blue for sky fallback. Depth Ratio shows a heatmap of hit depth vs origin depth. Step Z Heatmap shows the log-scale of the initial ray step size.
+value.SSR_DEBUG.0=Off
+value.SSR_DEBUG.1=Hit Mask
+value.SSR_DEBUG.2=Depth Ratio
+value.SSR_DEBUG.3=Step Z Heatmap
+
 
 
 
