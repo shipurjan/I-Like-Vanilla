@@ -6,6 +6,42 @@ Standing on a mountain under tree leaves, looking at a distant lake (~100 blocks
 
 A secondary bug was also observed: when a falling leaf particle passes through the player's camera/POV, ALL water in the scene momentarily becomes transparent.
 
+## Reproduction Setup
+
+Player stands atop a tall stone pillar (Y=73), gazing horizontally toward the water surface (Y=63) far below. Leaves are directly above at Y=75.
+
+```
+Legend:
+X - stone block
+~ - water
+p - player's legs
+o - player's head
+<-- - gaze direction (horizontal, toward water surface)
+#  - leaves
+.  - air
+
+Y\Z   0  1  2  3  4  5
+ 75 [ #  #  #  #  #  . ]
+ 74 [ .  .  .  .  <--o ]
+ 73 [ .  .  .  .  .  p ]
+ 72 [ .  .  .  .  .  X ]
+ 71 [ .  .  .  .  .  X ]
+ 70 [ .  .  .  .  .  X ]
+ 69 [ .  .  .  .  .  X ]
+ 68 [ .  .  .  .  .  X ]
+ 67 [ .  .  .  .  .  X ]
+ 66 [ .  .  .  .  .  X ]
+ 65 [ .  .  .  .  .  X ]
+ 64 [ .  .  .  .  .  X ]
+ 63 [ ~  ~  ~  ~  ~  X ]
+```
+
+### SSR_DEBUG=1 screenshots
+
+**Buggy (with leaves overhead):** Blue pixels intermix with red in the upper half (horizon zone) of the water surface, forming leaf-shaped patterns. The blue patches correspond to SSR rays that failed to converge because leaves occlude the terrain in the depth buffer.
+
+**Expected (no leaves overhead):** The horizon zone is uniformly red (all SSR rays successfully hit terrain), with the lower half blue (steep-angle rays correctly falling back to sky).
+
 ## Shader Pack Architecture
 
 ### Rendering Pipeline
